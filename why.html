@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Canvas tutorial</title>
+    <script type="text/javascript">
+        var configs = {
+            text : "a", // 输出的字符串
+            textFill : true, // 是否填充绘制字符串
+            dotColor : "grey",
+            dotStyle : "circle", // circle / rect
+            debug : false // 是否显示一个用于调试的canvas
+        };
+
+        function load() {
+
+            function Point(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+
+            /**
+             *
+             * @param cur Point
+             * @param to Point
+             * @param color string
+             * @constructor
+             */
+            function MovingDot(cur, to, color) { // http://www.w3school.com.cn/js/pro_js_object_defining.asp
+                this.cur = cur;
+                this.to = to;
+                this.color = color;
+
+                this.dx = (this.to.x - this.cur.x) / 200;
+                this.dy = (this.to.y - this.cur.y) / 200;
+            }
+            /**
+             * 是否已到达目标点
+             */
+            MovingDot.prototype.reachedDst = function () {
+                // 只需判断一个方向即可（这里取x）
+                // 符号相反表示已到；利用抑或判断符号 (http://w3school.com.cn/js/pro_js_operators_bitwise.asp)
+                return (this.dx ^ (this.to.x - this.cur.x)) < 0;
+            };
+
+            // http://www.xiaomeiti.com/note/3589
+            Math.seed = 0;
+            Math.seededRandom = function(max, min) {
+                max = max || 1;
+                min = min || 0;
+
+                Math.seed = (Math.seed * 9301 + 49297) % 233280;
+                var rnd = Math.seed / 233280.0;
+
+                return min + rnd * (max - min);
+            };
+
+            //设置canvas的高宽
+            function setCanvasSize() {
+                canvas.width = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+                canvas.height = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+//                alert(canvas.width + ", " + canvas.height);
+            }
+
+            function hasPixIn(x, y) { // 从imageData取(x,y)点看是否为非透明
+                var n = y * textWidth + x; // 取第n个像素点
+//                if (x == 0 && y == 0) {
+//                    alert(imageData.data[4 * n + 3]);
+//                }
+                // 看RGBA中的A是否为0
+                return imageData.data[4 * n + 3] != 0;
+            }
+
+            /**
+             * 周期性执行指定函数
+             * @type {*|Function}
+             */
+            var frameFunc = window.requestAnimationFrame
+                    || window.webkitRequestAnimationFrame
+                    || window.mozRequestAnimationFrame
+                    || window.oRequestAnimationFrame
+                    || window.msRequestAnimationFrame
+                    || function (func) {
+                        window.setTimeout(func, 1000 / 45);
+                    };
+
+            var
+                    canvas = document.getElementById("canvas"), // 显示目标图像的canvas
+                    ctx = canvas.getContext("2d"),
+                    imageData, // 保存了字符串每个像素点颜色信息（RGBA）（https://developer.mozilla.org/zh-CN/docs/Web/API/ImageData）
+                    textWidth, /*textHeight,*/ // text的有效长宽
+                    textDots = [], // text的字符串点阵：[point, ...]
+
+                    movingDots = [], // 运动中的点集：[movingDot, ...]
+                    reachedDots = [],
+
+                    multiple = 10,
+                    radius = 5
+            ;
+
+            //初始化画布大小
+            setCanvasSize();
+            window.onresize = setCanvasSize;
+
+            !function getImageData() {
+                var helperCanvas = document.getElementById("test");
+                if (!configs.debug) {
+                    helperCanvas.style.display = "none";
+                }
+                var helperCtx = helperCanvas.getContext("2d");
+                var canvasHeight = helperCanvas.height;
+
+                helperCtx.font = "48px serif";
+                helperCtx.textBaseline = "top";
+                helperCtx.fillStyle = "rgb(0,0,0)";
+                if (configs.textFill) {
+                    helperCtx.fillText(configs.text, 0, 0);
+                } else {
+                    helperCtx.strokeText(configs.text, 0, 0);
+                }
+                textWidth = helperCtx.measureText(configs.text).width;
+                imageData = helperCtx.getImageData(0, 0, textWidth, canvasHeight); // 以canvas的高度作为字体暂时的高度（大于实际高度）
+                for (var y = 0; y < canvasHeight; y++) { // 横向查找（如果x在外层循环，则为纵向查找）
+                    for (var x = 0; x < textWidth; x++) {
+                        if (hasPixIn(x, y)) {
+                            textDots.push(new Point(x, y));
+//                            textHeight = y;
+                        }
+                    }
+                }
+//                alert("textDots:" + textDots.length);
+//                alert(textWidth + "," + textHeight);
+            }();
+
+            var i;
+            for (i = 0; i < textDots.length; i++) {
+                var dot = textDots[i];
+                var
+                        cur = new Point(Math.seededRandom() * canvas.width, Math.seededRandom() * canvas.height),
+                        to = new Point(dot.x * multiple, dot.y * multiple)
+                ;
+                movingDots.push(new MovingDot(cur, to, configs.dotColor));
+            }
+
+            !function draw(){
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+//                for (var i = 0; i < textDots.length; i++) {
+//                    var dot = textDots[i];
+//                    ctx.beginPath();
+//                    if (configs.dotStyle == "circle") {
+//                        ctx.arc(dot.x * multiple, dot.y * multiple, radius, 0, 2 * Math.PI);
+//                    } else if (configs.dotStyle == "rect") {
+//                        ctx.rect(dot.x * multiple - radius, dot.y * multiple - radius, 2 * radius, 2 * radius); // 画矩形效果没有圆形好。。。
+//                    }
+//                    ctx.fill();
+//                }
+                for (i = movingDots.length - 1; i >= 0 ; i--) { // 有删除操作，需要倒序遍历
+                    var movingDot = movingDots[i];
+                    movingDot.cur.x += movingDot.dx;
+                    movingDot.cur.y += movingDot.dy;
+                    if (movingDot.reachedDst()) {
+                        movingDots.splice(i, 1); // remove
+                        movingDot.color = "black";
+                        reachedDots.push(movingDot);
+                    } else {
+                        ctx.fillStyle = movingDot.color;
+                        ctx.beginPath();
+                        if (configs.dotStyle == "circle") {
+                            ctx.arc(movingDot.cur.x, movingDot.cur.y, radius, 0, 2 * Math.PI);
+                        } else if (configs.dotStyle == "rect") {
+                            ctx.rect(movingDot.cur.x - radius, movingDot.cur.y - radius, 2 * radius, 2 * radius); // 画矩形效果没有圆形好。。。
+                        }
+                        ctx.fill();
+                    }
+                }
+
+                // draw reachedDots
+                for (i in reachedDots) {
+                    var reachedDot = reachedDots[i];
+                    ctx.fillStyle = reachedDot.color;
+                    ctx.beginPath();
+                    if (configs.dotStyle == "circle") {
+                        ctx.arc(reachedDot.to.x, reachedDot.to.y, radius, 0, 2 * Math.PI);
+                    } else if (configs.dotStyle == "rect") {
+                        ctx.rect(reachedDot.to.x - radius, reachedDot.to.y - radius, 2 * radius, 2 * radius); // 画矩形效果没有圆形好。。。
+                    }
+                    ctx.fill();
+                }
+                frameFunc(draw);
+            }();
+        }
+    </script>
+    <style type="text/css">
+        canvas {
+            position:fixed;
+            top:0;
+            left:0;
+            /*opacity:0.5*/
+        }
+        canvas#test { /*for debug*/
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body onload="load();">
+<canvas id="canvas"></canvas>
+<canvas id="test" width=500 height=500></canvas>
+</body>
+</html>
